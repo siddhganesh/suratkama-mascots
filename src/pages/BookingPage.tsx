@@ -14,6 +14,7 @@ import { Booking } from '../types'
 import SEO from '../components/ui/SEO'
 import RazorpayButton from '../components/ui/RazorpayButton'
 import { useSlotAvailability, getBookedDatesForMascot } from '../hooks/useSlotAvailability'
+import { sendFrontendNotifications } from '../lib/notifications'
 
 type Step = 'details' | 'payment' | 'confirm'
 
@@ -299,6 +300,21 @@ export default function BookingPage() {
     } else {
       saveLocally({ id: `bk-${Date.now()}`, ...newBooking })
     }
+
+    // Trigger direct frontend notifications (acts as a backup if Cloud Functions are not deployed)
+    sendFrontendNotifications({
+      userName: formData.name,
+      userPhone: formData.phone,
+      userEmail: formData.email,
+      mascotNames: mascotNames,
+      date: bookingDate,
+      timeSlot: `${formatHour(startHour)} – ${formatHour(startHour + quantity)}`,
+      venueAddress: venueAddress || event.location,
+      functionType,
+      totalPrice: grandTotal,
+      confirmationCode: code,
+      paymentId,
+    }).catch(err => console.warn('Frontend notification skipped:', err))
 
     setConfirmCode(code)
     setConfirmPaymentId(paymentId)
