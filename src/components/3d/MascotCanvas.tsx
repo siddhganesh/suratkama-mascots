@@ -4,15 +4,17 @@ import { Float, Stars, OrbitControls, Torus, useTexture } from '@react-three/dre
 import * as THREE from 'three'
 import HolographicMaterial from './HolographicMaterial'
 
+import { resolvePath } from '../../lib/paths'
+
 // ── Mascot image list (7 real costumes) ─────────────────────────────────────
 const MASCOTS = [
-  { src: '/assets/gorilla_3d.png',    label: 'Gorilla',      color: '#6D28D9' },
-  { src: '/assets/panda_3d.png',      label: 'Panda',        color: '#06B6D4' },
-  { src: '/assets/yellowteddy_3d.png',label: 'Yellow Teddy', color: '#F59E0B' },
-  { src: '/assets/pinkteddy_3d.png',  label: 'Pink Fox',     color: '#EC4899' },
-  { src: '/assets/rabbit_3d_new.png', label: 'Red Rabbit',   color: '#EF4444' },
-  { src: '/assets/teddy_3d.png',      label: 'Brown Teddy',  color: '#92400E' },
-  { src: '/assets/wolf_3d.png',       label: 'Black Wolf',   color: '#374151' },
+  { src: resolvePath('/assets/gorilla_3d.png'),    label: 'Gorilla',      color: '#6D28D9' },
+  { src: resolvePath('/assets/panda_3d.png'),      label: 'Panda',        color: '#06B6D4' },
+  { src: resolvePath('/assets/yellowteddy_3d.png'),label: 'Yellow Teddy', color: '#F59E0B' },
+  { src: resolvePath('/assets/pinkteddy_3d.png'),  label: 'Pink Fox',     color: '#EC4899' },
+  { src: resolvePath('/assets/rabbit_3d_new.png'), label: 'Red Rabbit',   color: '#EF4444' },
+  { src: resolvePath('/assets/teddy_3d.png'),      label: 'Brown Teddy',  color: '#92400E' },
+  { src: resolvePath('/assets/wolf_3d.png'),       label: 'Black Wolf',   color: '#374151' },
 ]
 
 // ── Moving Grid Floor ────────────────────────────────────────────────────────

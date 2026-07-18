@@ -10,6 +10,8 @@ import { useState } from 'react'
 import { Lock, Zap, CreditCard, Smartphone, Check, AlertCircle, Copy } from 'lucide-react'
 
 // Extend window type for Razorpay SDK
+import { resolvePath } from '../../lib/paths'
+
 declare global {
   interface Window {
     Razorpay: any
@@ -119,7 +121,7 @@ export default function RazorpayButton({
       currency: 'INR',
       name: 'SuratKama Mascots',
       description,
-      image: '/favicon.svg',
+      image: resolvePath('/favicon.svg'),
       prefill: {
         name: prefill?.name ?? '',
         email: prefill?.email ?? '',

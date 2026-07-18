@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   // GitHub Pages base path — must match repo name
-  base: '/suratkama-mascots/',
+  base: '/suratkama%20mascots/',
   resolve: {
     alias: {
       '@': '/src',

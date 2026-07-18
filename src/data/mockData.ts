@@ -1,7 +1,9 @@
 import { Event, EventCategory, User } from '../types'
 
+import { resolvePath } from '../lib/paths'
+
 // ── Mock Mascots – 7 real costume characters ─────────────────────────────────
-export const MOCK_EVENTS: Event[] = [
+const RAW_MOCK_EVENTS: Event[] = [
   {
     id: 'mascot-001',
     title: 'Giant Gorilla',
@@ -206,6 +208,18 @@ export const MOCK_EVENTS: Event[] = [
     },
   },
 ]
+
+export const MOCK_EVENTS: Event[] = RAW_MOCK_EVENTS.map(event => ({
+  ...event,
+  image: resolvePath(event.image),
+  video: event.video ? resolvePath(event.video) : undefined,
+  galleryImages: event.galleryImages ? {
+    front: resolvePath(event.galleryImages.front),
+    back: resolvePath(event.galleryImages.back),
+    side: resolvePath(event.galleryImages.side),
+    action: resolvePath(event.galleryImages.action),
+  } : undefined,
+}))
 
 // ── Categories ───────────────────────────────────────────────────────────────
 export const EVENT_CATEGORIES: (EventCategory | 'All')[] = [

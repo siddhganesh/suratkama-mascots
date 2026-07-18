@@ -43,20 +43,21 @@ export function trackEvent(action: string, category: string, label?: string, val
   }
 }
 
-// GitHub Pages SPA base path — must match vite.config.ts base
-const BASE_PATH = '/suratkama-mascots'
+import { getDynamicBasename } from './lib/paths'
 
 // GoogleOAuthProvider crashes if clientId is empty — only wrap when configured
+const dynamicBasename = getDynamicBasename()
+
 const AppWithProviders = GOOGLE_CLIENT_ID
   ? (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <BrowserRouter basename={BASE_PATH}>
+      <BrowserRouter basename={dynamicBasename}>
         <App />
       </BrowserRouter>
     </GoogleOAuthProvider>
   )
   : (
-    <BrowserRouter basename={BASE_PATH}>
+    <BrowserRouter basename={dynamicBasename}>
       <App />
     </BrowserRouter>
   )

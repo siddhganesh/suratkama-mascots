@@ -13,7 +13,7 @@
  *   })
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { db, isFirebaseEnabled } from '../config/firebase'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 
@@ -60,8 +60,11 @@ export function useSlotAvailability({
 
   const endHour = startHour + durationHours
 
+  // Memoize mascotIds to avoid infinite loop when arrays are recreated on every render
+  const memoizedMascotIds = useMemo(() => mascotIds, [mascotIds.join(',')])
+
   const fetchSlots = useCallback(async () => {
-    if (!date || mascotIds.length === 0) return
+    if (!date || memoizedMascotIds.length === 0) return
 
     setIsLoading(true)
     let existingBookings: TimeSlot[] = []
@@ -125,13 +128,13 @@ export function useSlotAvailability({
 
     // ── Filter: find conflicts for requested mascot IDs + time range ─────
     const conflicts = existingBookings.filter(slot =>
-      mascotIds.includes(slot.mascotId) &&
+      memoizedMascotIds.includes(slot.mascotId) &&
       hasOverlap(startHour, endHour, slot.startHour, slot.endHour)
     )
 
     setConflictingSlots(conflicts)
     setIsLoading(false)
-  }, [date, mascotIds, startHour, endHour])
+  }, [date, memoizedMascotIds, startHour, endHour])
 
   useEffect(() => {
     fetchSlots()
