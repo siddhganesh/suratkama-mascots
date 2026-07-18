@@ -30,12 +30,6 @@ service cloud.firestore {
       return field is string && field.size() > 0 && field.size() <= maxLen;
     }
 
-    // Rate limiting helper: max 10 writes per minute per user
-    // (Firestore doesn't have native rate limiting, but we validate timestamps)
-    function recentlyCreated() {
-      return request.time < resource.data.bookedAt.toTime() + duration.value(60, 's');
-    }
-
     // ── /users/{userId} ─────────────────────────────────────────────────────────
     // Users can read/write their own profile; admin can read all
     match /users/{userId} {
