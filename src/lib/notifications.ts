@@ -1,3 +1,5 @@
+import emailjs from '@emailjs/browser'
+
 interface SendNotificationOptions {
   userName: string
   userPhone: string
@@ -13,9 +15,14 @@ interface SendNotificationOptions {
 }
 
 /**
- * Sends booking notifications (SMS + Email) directly from the browser using standard fetch API.
- * This acts as a 100% free backup if the Firebase project is on the free Spark plan
- * (which doesn't support deploying backend Cloud Functions).
+ * ╔══════════════════════════════════════════════════════════════════╗
+ * ║   SuratKama Mascots — EmailJS Notification System               ║
+ * ║   100% FREE — 200 emails/month via emailjs.com                  ║
+ * ║                                                                  ║
+ * ║   Sends 2 emails on every booking:                              ║
+ * ║     1. Client  → Booking confirmation with all details          ║
+ * ║     2. Owner   → New booking alert with customer info           ║
+ * ╚══════════════════════════════════════════════════════════════════╝
  */
 export async function sendFrontendNotifications(options: SendNotificationOptions) {
   const {
@@ -32,74 +39,66 @@ export async function sendFrontendNotifications(options: SendNotificationOptions
     paymentId,
   } = options
 
+  const serviceId  = import.meta.env.VITE_EMAILJS_SERVICE_ID  ?? ''
+  const publicKey  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY  ?? ''
+  const clientTpl  = import.meta.env.VITE_EMAILJS_TEMPLATE_CLIENT ?? ''
+  const ownerTpl   = import.meta.env.VITE_EMAILJS_TEMPLATE_OWNER  ?? ''
+  const ownerEmail = import.meta.env.VITE_OWNER_EMAIL ?? 'siddhganesh09@gmail.com'
+
+  if (!serviceId || !publicKey) {
+    console.warn('⚠️ EmailJS keys not configured — skipping email notifications.')
+    return
+  }
+
+  // Initialise once (safe to call multiple times)
+  emailjs.init({ publicKey })
+
   const amountStr = `₹${totalPrice.toLocaleString('en-IN')}`
-  const ownerPhoneNo = '6353046419'
 
-  // SMS text templates
-  const clientSMS = `🎭 SuratKama Mascots\nBooking CONFIRMED! ✅\nCode: ${confirmationCode}\nMascot: ${mascotNames}\nDate: ${date}\nTime: ${timeSlot}\nVenue: ${venueAddress}\nTotal Paid: ${amountStr}\nFor queries: +91 6353046419\nThank you! 🎉`
-  const ownerSMS = `🚨 NEW BOOKING ALERT!\n━━━━━━━━━━━━━━━━━━━━\nFrom: ${userName}\nPhone: ${userPhone || 'N/A'}\nMascot: ${mascotNames}\nDate: ${date}\nTime: ${timeSlot}\nVenue: ${venueAddress}\nAmount: ${amountStr}\nCode: ${confirmationCode}\nPayment ID: ${paymentId}`
-
-  // ── 1. Fast2SMS Integration (Direct HTTP Trigger via CORS Proxy) ───────────
-  const fast2smsApiKey = import.meta.env.VITE_FAST2SMS_KEY ?? ''
-  if (fast2smsApiKey) {
-    try {
-      const cleanClientPhone = userPhone.replace(/[\s\-+]/g, '').replace(/^91/, '')
-      const cleanOwnerPhone = ownerPhoneNo.replace(/[\s\-+]/g, '').replace(/^91/, '')
-
-      // Send to Client
-      if (cleanClientPhone) {
-        const clientUrl = `https://www.fast2sms.com/dev/bulkV2?authorization=${fast2smsApiKey}&route=q&message=${encodeURIComponent(clientSMS)}&language=english&flash=0&numbers=${cleanClientPhone}`
-        await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(clientUrl)}`)
-        console.log('✅ Client SMS notification sent successfully!')
-      }
-
-      // Send to Owner
-      const ownerUrl = `https://www.fast2sms.com/dev/bulkV2?authorization=${fast2smsApiKey}&route=q&message=${encodeURIComponent(ownerSMS)}&language=english&flash=0&numbers=${cleanOwnerPhone}`
-      await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(ownerUrl)}`)
-      console.log('✅ Owner SMS notification sent successfully!')
-    } catch (err: any) {
-      console.error('❌ Failed to dispatch SMS via frontend:', err.message)
-    }
+  // ── Shared template params ────────────────────────────────────────────────────
+  const sharedParams = {
+    mascot_name:       mascotNames,
+    booking_date:      date,
+    time_slot:         timeSlot,
+    venue_address:     venueAddress,
+    function_type:     functionType,
+    total_price:       amountStr,
+    confirmation_code: confirmationCode,
+    payment_id:        paymentId || 'N/A',
   }
 
-  // ── 2. EmailJS Integration (Free client-side emails without credentials) ────
-  const emailjsServiceId = import.meta.env.VITE_EMAILJS_SERVICE_ID ?? ''
-  const emailjsTemplateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID ?? ''
-  const emailjsPublicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY ?? ''
+  const tasks: Promise<void>[] = []
 
-  if (emailjsServiceId && emailjsTemplateId && emailjsPublicKey) {
-    try {
-      const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          service_id: emailjsServiceId,
-          template_id: emailjsTemplateId,
-          user_id: emailjsPublicKey,
-          template_params: {
-            to_name: userName,
-            to_email: userEmail,
-            mascot_name: mascotNames,
-            booking_date: date,
-            time_slot: timeSlot,
-            venue_address: venueAddress,
-            function_type: functionType,
-            total_price: amountStr,
-            confirmation_code: confirmationCode,
-            payment_id: paymentId,
-          }
-        })
+  // ── 1. Email to CLIENT ────────────────────────────────────────────────────────
+  if (userEmail && clientTpl) {
+    tasks.push(
+      emailjs.send(serviceId, clientTpl, {
+        ...sharedParams,
+        to_name:  userName,
+        to_email: userEmail,
+        customer_phone: userPhone || 'Not provided',
       })
-      if (response.ok) {
-        console.log('✅ Confirmation email sent successfully via EmailJS!')
-      } else {
-        const text = await response.text()
-        console.warn('⚠️ EmailJS responded with error:', text)
-      }
-    } catch (err: any) {
-      console.error('❌ Failed to dispatch email via EmailJS:', err.message)
-    }
+      .then(() => console.log('✅ Confirmation email sent to client:', userEmail))
+      .catch((err) => console.error('❌ Client email failed:', err?.text ?? err))
+    )
   }
+
+  // ── 2. Alert email to OWNER ───────────────────────────────────────────────────
+  if (ownerTpl) {
+    tasks.push(
+      emailjs.send(serviceId, ownerTpl, {
+        ...sharedParams,
+        to_name:        'SuratKama Owner',
+        to_email:       ownerEmail,
+        customer_name:  userName,
+        customer_phone: userPhone || 'Not provided',
+        customer_email: userEmail || 'Not provided',
+      })
+      .then(() => console.log('✅ New booking alert sent to owner:', ownerEmail))
+      .catch((err) => console.error('❌ Owner email failed:', err?.text ?? err))
+    )
+  }
+
+  await Promise.allSettled(tasks)
+  console.log(`🎉 All notifications dispatched for booking ${confirmationCode}`)
 }
