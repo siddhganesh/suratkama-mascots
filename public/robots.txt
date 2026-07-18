@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Block admin and profile (authenticated pages)
+Disallow: /admin
+Disallow: /profile
+
+# Block booking page from being indexed (dynamic/auth-gated)
+Disallow: /book
+
+# Sitemap
+Sitemap: https://suratkamamascots.com/sitemap.xml

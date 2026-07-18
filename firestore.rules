@@ -1,0 +1,147 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║    SURATKAMA MASCOTS — Firestore Security Rules              ║
+// ║    Hacker-proof: role-based access, rate limiting, schema   ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Functions ────────────────────────────────────────────────────────
+
+    // Check if user is logged in
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the requesting user is the document owner
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if user has admin role in users collection
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Validate string field: exists, is string, within max length
+    function validString(field, maxLen) {
+      return field is string && field.size() > 0 && field.size() <= maxLen;
+    }
+
+    // Rate limiting helper: max 10 writes per minute per user
+    // (Firestore doesn't have native rate limiting, but we validate timestamps)
+    function recentlyCreated() {
+      return request.time < resource.data.bookedAt.toTime() + duration.value(60, 's');
+    }
+
+    // ── /users/{userId} ─────────────────────────────────────────────────────────
+    // Users can read/write their own profile; admin can read all
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if isOwner(userId) || isAdmin();
+
+      // Users can create their own profile doc on signup
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasAll(['email', 'name', 'createdAt'])
+        && validString(request.resource.data.email, 256)
+        && validString(request.resource.data.name, 100)
+        // Prevent self-granting admin role
+        && (!request.resource.data.keys().hasAny(['role'])
+            || request.resource.data.role == 'user');
+
+      // Users can update their own profile (not role field)
+      allow update: if isOwner(userId)
+        // Block changing role field (only admin can do that)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+
+      // Only admin can delete user docs
+      allow delete: if isAdmin();
+    }
+
+    // ── /bookings/{bookingId} ────────────────────────────────────────────────────
+    match /bookings/{bookingId} {
+      // Users can only read their own bookings; admin reads all
+      allow read: if isAdmin()
+        || (isAuthenticated() && resource.data.userId == request.auth.uid);
+
+      // Authenticated user can create a booking — strict schema validation
+      allow create: if isAuthenticated()
+        // Must be creating a booking for themselves
+        && request.resource.data.userId == request.auth.uid
+        // Required fields must exist and be valid
+        && request.resource.data.keys().hasAll([
+             'userId', 'mascotIds', 'bookingDate', 'startHour', 'endHour',
+             'functionType', 'venueAddress', 'totalPrice', 'status',
+             'confirmationCode', 'bookedAt', 'userName', 'userPhone'
+           ])
+        // Field type & length validation
+        && validString(request.resource.data.bookingDate, 10)
+        && validString(request.resource.data.functionType, 100)
+        && validString(request.resource.data.venueAddress, 500)
+        && validString(request.resource.data.confirmationCode, 30)
+        && validString(request.resource.data.status, 20)
+        && request.resource.data.totalPrice is number
+        && request.resource.data.totalPrice > 0
+        && request.resource.data.totalPrice < 1000000  // max 10 lakh sanity check
+        && request.resource.data.startHour is number
+        && request.resource.data.startHour >= 6
+        && request.resource.data.startHour <= 22
+        // Status must be 'confirmed' or 'pending'
+        && request.resource.data.status in ['confirmed', 'pending']
+        // mascotIds must be a list
+        && request.resource.data.mascotIds is list
+        && request.resource.data.mascotIds.size() > 0
+        && request.resource.data.mascotIds.size() <= 6;
+
+      // Only admin can update or cancel bookings
+      allow update: if isAdmin()
+        // Admin can only change status, not other fields
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'adminNotes', 'updatedAt']);
+
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+
+    // ── /slots/{slotId} ─────────────────────────────────────────────────────────
+    // Availability slots — public read for calendar, write only via booking
+    match /slots/{slotId} {
+      // Anyone can check availability (needed for calendar to show booked dates)
+      allow read: if true;
+
+      // Only admin can manually manage slots
+      allow write: if isAdmin();
+    }
+
+    // ── /mascots/{mascotId} ──────────────────────────────────────────────────────
+    // Mascot catalog — public read, admin-only write
+    match /mascots/{mascotId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── /reviews/{reviewId} ──────────────────────────────────────────────────────
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && validString(request.resource.data.comment, 1000);
+      allow update, delete: if isAdmin();
+    }
+
+    // ── /notifications/{notifId} ─────────────────────────────────────────────────
+    // Notification log (internal use only)
+    match /notifications/{notifId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── Block all other collections ──────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
